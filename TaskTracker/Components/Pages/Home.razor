@@ -1,0 +1,242 @@
+﻿@page "/"
+@using Microsoft.Data.Sqlite
+@using Microsoft.AspNetCore.Hosting
+@inject IWebHostEnvironment Environment
+
+<PageTitle>My Task Tracker</PageTitle>
+
+<h1>My Task Tracker</h1>
+
+<p>Remaining tasks: @tasks.Count(t => !t.IsDone)</p>
+
+<label for="taskInput">Task name</label>
+
+<input id="taskInput"
+       class="form-control"
+       placeholder="Enter a task"
+       @bind="newTask" />
+
+<button class="btn btn-primary mt-2"
+        @onclick="AddTask">
+    Add Task
+</button>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <p class="text-danger mt-2" role="alert">@message</p>
+}
+
+<ul class="mt-3">
+    @foreach (var task in tasks)
+    {
+        <li @key="task.Id" class="mb-3">
+            @if (editingId == task.Id)
+            {
+                <input class="form-control"
+                       aria-label="Edit task name"
+                       @bind="editTitle" />
+
+                <button class="btn btn-success btn-sm mt-2"
+                        @onclick="SaveEdit">
+                    Save
+                </button>
+
+                <button class="btn btn-secondary btn-sm mt-2 ms-2"
+                        @onclick="CancelEdit">
+                    Cancel
+                </button>
+            }
+            else
+            {
+                <label>
+                    <input type="checkbox"
+                           checked="@task.IsDone"
+                           @onchange="e => SetDone(task, e)" />
+
+                    <span class="@(task.IsDone ? "text-decoration-line-through text-muted" : "")">
+                        @task.Title
+                    </span>
+                </label>
+
+                <button class="btn btn-warning btn-sm ms-2"
+                        @onclick="() => StartEdit(task)">
+                    Edit
+                </button>
+
+                <button class="btn btn-danger btn-sm ms-2"
+                        @onclick="() => DeleteTask(task)">
+                    Delete
+                </button>
+            }
+        </li>
+    }
+</ul>
+
+@code {
+    private string newTask = "";
+    private string connectionString = "";
+    private List<TaskItem> tasks = new();
+
+    private long? editingId;
+    private string editTitle = "";
+    private string message = "";
+
+    protected override void OnInitialized()
+    {
+        var folder = System.IO.Path.Combine(
+            Environment.ContentRootPath, "App_Data");
+
+        System.IO.Directory.CreateDirectory(folder);
+
+        connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = System.IO.Path.Combine(folder, "tasks.db")
+        }.ToString();
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            CREATE TABLE IF NOT EXISTS Tasks (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Title TEXT NOT NULL,
+                IsDone INTEGER NOT NULL DEFAULT 0
+            );
+            """;
+
+        command.ExecuteNonQuery();
+        LoadTasks();
+    }
+
+    private SqliteConnection OpenConnection()
+    {
+        var connection = new SqliteConnection(connectionString);
+        connection.Open();
+        return connection;
+    }
+
+    private void LoadTasks()
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText =
+            "SELECT Id, Title, IsDone FROM Tasks ORDER BY Id;";
+
+        using var reader = command.ExecuteReader();
+        var loadedTasks = new List<TaskItem>();
+
+        while (reader.Read())
+        {
+            loadedTasks.Add(new TaskItem
+            {
+                Id = reader.GetInt64(0),
+                Title = reader.GetString(1),
+                IsDone = reader.GetInt64(2) == 1
+            });
+        }
+
+        tasks = loadedTasks;
+    }
+
+    private void AddTask()
+    {
+        if (string.IsNullOrWhiteSpace(newTask))
+        {
+            message = "Please enter a task name.";
+            return;
+        }
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText =
+            "INSERT INTO Tasks (Title, IsDone) VALUES ($title, 0);";
+
+        command.Parameters.AddWithValue("$title", newTask.Trim());
+        command.ExecuteNonQuery();
+
+        newTask = "";
+        message = "";
+        LoadTasks();
+    }
+
+    private void SetDone(TaskItem task, ChangeEventArgs e)
+    {
+        bool isDone = e.Value is bool value && value;
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText =
+            "UPDATE Tasks SET IsDone = $done WHERE Id = $id;";
+
+        command.Parameters.AddWithValue("$done", isDone ? 1 : 0);
+        command.Parameters.AddWithValue("$id", task.Id);
+        command.ExecuteNonQuery();
+
+        LoadTasks();
+    }
+
+    private void DeleteTask(TaskItem task)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText =
+            "DELETE FROM Tasks WHERE Id = $id;";
+
+        command.Parameters.AddWithValue("$id", task.Id);
+        command.ExecuteNonQuery();
+
+        LoadTasks();
+    }
+
+    private void StartEdit(TaskItem task)
+    {
+        editingId = task.Id;
+        editTitle = task.Title;
+        message = "";
+    }
+
+    private void CancelEdit()
+    {
+        editingId = null;
+        editTitle = "";
+        message = "";
+    }
+
+    private void SaveEdit()
+    {
+        if (editingId is not long id)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editTitle))
+        {
+            message = "Task name cannot be empty.";
+            return;
+        }
+
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText =
+            "UPDATE Tasks SET Title = $title WHERE Id = $id;";
+
+        command.Parameters.AddWithValue("$title", editTitle.Trim());
+        command.Parameters.AddWithValue("$id", id);
+        command.ExecuteNonQuery();
+
+        CancelEdit();
+        LoadTasks();
+    }
+
+    private class TaskItem
+    {
+        public long Id { get; set; }
+        public string Title { get; set; } = "";
+        public bool IsDone { get; set; }
+    }
+}
