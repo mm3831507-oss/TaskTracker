@@ -21,7 +21,12 @@
            placeholder="Enter description"
            @bind="newDescription" />
 </div>
-
+<div class="mb-3">
+    <label>Due Date</label>
+    <input type="date"
+           class="form-control"
+           @bind="newDueDate" />
+</div>
 <button class="btn btn-primary"
         @onclick="AddTask">
     Add Task
@@ -89,6 +94,7 @@
 @code {
     private string newTask = "";
     private string newDescription = "";
+    private DateTime? newDueDate;
     private string message = "";
     private string connectionString = "";
 
@@ -148,6 +154,26 @@
 
             command.ExecuteNonQuery();
         }
+        command.CommandText = "PRAGMA table_info(Tasks);";
+        bool hasDueDate = false;
+
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                if (reader.GetString(1) == "DueDate")
+                {
+                    hasDueDate = true;
+                }
+            }
+        }
+
+        if (!hasDueDate)
+        {
+            command.CommandText =
+                "ALTER TABLE Tasks ADD COLUMN DueDate TEXT;";
+            command.ExecuteNonQuery();
+        }
 
         LoadTasks();
     }
@@ -167,7 +193,7 @@
         using var command = connection.CreateCommand();
 
         command.CommandText =
-            "SELECT Id, Title, Description, IsDone " +
+            "SELECT Id, Title, Description, IsDone, DueDate " +
             "FROM Tasks ORDER BY Id DESC;";
 
         using var reader = command.ExecuteReader();
@@ -179,7 +205,10 @@
                 Id = reader.GetInt64(0),
                 Title = reader.GetString(1),
                 Description = reader.GetString(2),
-                IsDone = reader.GetInt64(3) != 0
+                IsDone = reader.GetInt64(3) != 0,
+                DueDate = reader.IsDBNull(4)
+    ? null
+    : DateTime.Parse(reader.GetString(4))
             });
         }
 
@@ -198,19 +227,25 @@
         using var command = connection.CreateCommand();
 
         command.CommandText =
-            "INSERT INTO Tasks (Title, Description, IsDone) " +
-            "VALUES ($title, $description, 0);";
+    "INSERT INTO Tasks (Title, Description, IsDone, DueDate) " +
+    "VALUES ($title, $description, 0, $dueDate);";
 
         command.Parameters.AddWithValue(
             "$title", newTask.Trim());
 
         command.Parameters.AddWithValue(
             "$description", newDescription.Trim());
+        command.Parameters.AddWithValue(
+"$dueDate",
+newDueDate.HasValue
+    ? newDueDate.Value.ToString("yyyy-MM-dd")
+    : (object)DBNull.Value);
 
         command.ExecuteNonQuery();
 
         newTask = "";
         newDescription = "";
+        newDueDate = null;
         message = "";
 
         LoadTasks();
@@ -300,5 +335,6 @@
         public string Title { get; set; } = "";
         public string Description { get; set; } = "";
         public bool IsDone { get; set; }
+        public DateTime? DueDate { get; set; }
     }
 }
