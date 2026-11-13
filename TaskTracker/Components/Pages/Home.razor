@@ -48,6 +48,10 @@
 
                 <input class="form-control mb-2"
                        @bind="editDescription" />
+                <label for="edit-due-date">Due Date</label>
+                <input id="edit-due-date" type="date"
+                       class="form-control mb-2"
+                       @bind="editDueDate" />
 
                 <button class="btn btn-success btn-sm"
                         @onclick="() => SaveEdit(task.Id)">
@@ -103,6 +107,7 @@
     private long? editingId;
     private string editTitle = "";
     private string editDescription = "";
+    private DateTime? editDueDate;
 
     protected override void OnInitialized()
     {
@@ -273,6 +278,7 @@ newDueDate.HasValue
         editingId = task.Id;
         editTitle = task.Title;
         editDescription = task.Description;
+        editDueDate = task.DueDate;
         message = "";
     }
 
@@ -289,7 +295,7 @@ newDueDate.HasValue
 
         command.CommandText =
             "UPDATE Tasks SET Title = $title, " +
-            "Description = $description WHERE Id = $id;";
+            "Description = $description, DueDate = $dueDate WHERE Id = $id;";
 
         command.Parameters.AddWithValue(
             "$title", editTitle.Trim());
@@ -298,6 +304,10 @@ newDueDate.HasValue
             "$description", editDescription.Trim());
 
         command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue(
+    "$dueDate",
+    (object?)editDueDate?.ToString("yyyy-MM-dd",
+        System.Globalization.CultureInfo.InvariantCulture) ?? DBNull.Value);
 
         command.ExecuteNonQuery();
 
