@@ -61,7 +61,8 @@ Tasks are stored locally in App_Data/tasks.db using SQLite.
 The application automatically creates the folder, database,
 and Tasks table on first run. No separate database setup is required.
 
-Task names and completion status are stored in the database.
+Task names, descriptions, completion status, and optional due dates are stored in the database.
+Saved due dates appear in the task list and can be changed using Edit.
 
 ## Author
 

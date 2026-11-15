@@ -80,6 +80,10 @@
                         @task.Description
                     </p>
                 }
+                @if (task.DueDate is DateTime dueDate)
+                {
+                    <div class="text-muted">Due: @dueDate.ToString("MM/dd/yyyy")</div>
+                }
 
                 <button class="btn btn-warning btn-sm ms-2"
                         @onclick="() => StartEdit(task)">
