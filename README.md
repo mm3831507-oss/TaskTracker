@@ -12,6 +12,8 @@ Tasks remain saved after the application restarts.
 
 - Add new tasks.
 - Edit existing tasks.
+- Set or edit an optional due date for each task.
+- View saved due dates directly in the task list.
 - Mark tasks as complete or incomplete.
 - Delete tasks.
 - View the remaining-task count.
